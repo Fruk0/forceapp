@@ -1162,13 +1162,13 @@ body{
       <div style="font-size:13px;color:var(--tx3);">Esta info ayuda a calibrar la próxima sesión.</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-      <button class="en-btn" onclick="saveEnergia('excelente')">Excelente</button>
-      <button class="en-btn" onclick="saveEnergia('bien')">Bien</button>
-      <button class="en-btn" onclick="saveEnergia('cansado')">Cansado</button>
-      <button class="en-btn" onclick="saveEnergia('muy-cansado')">Muy cansado</button>
+      <button class="en-btn" id="en-excelente" onclick="selectEnergia('excelente')">Excelente</button>
+      <button class="en-btn" id="en-bien" onclick="selectEnergia('bien')">Bien</button>
+      <button class="en-btn" id="en-cansado" onclick="selectEnergia('cansado')">Cansado</button>
+      <button class="en-btn" id="en-muy-cansado" onclick="selectEnergia('muy-cansado')">Muy cansado</button>
     </div>
     <input class="nota-input" id="energia-nota" type="text" placeholder="Nota opcional…" maxlength="100" style="margin-bottom:14px;">
-    <button class="btn-save" onclick="saveEnergia(S._pendingEnergia||'bien')">Guardar</button>
+    <button class="btn-save" onclick="saveEnergia(S._pendingEnergia||(S.energia||'bien'))">Guardar</button>
     <button class="btn-save" style="background:transparent;border:1px solid var(--b2);color:var(--tx3);margin-top:8px;font-size:14px;letter-spacing:1px;" onclick="skipEnergia()">Saltar</button>
   </div>
 </div>
@@ -1284,7 +1284,12 @@ function makeSeries(n){
 
 function initS(){
   const plan=PLAN[S.dow]||[];
-  S.ejs=plan.map(e=>({kg:'',reps:Array(e.s).fill(''),sens:null,mol:null,done:false}));
+  S.ejs=plan.map(e=>({
+    kg:'',
+    reps:Array(e.s).fill(''),
+    series:Array.from({length:e.s},(_,i)=>({setNumber:i+1,reps:null,rir:null,completed:false,weight:null})),
+    sens:null,mol:null,done:false
+  }));
   S.exp=0;S.sogaDone=false;S.molSel=[];S.molestia=null;S.energia=null;S.nota='';
   S.run={dist:'',pace:'',dur:'',sens:null,nota:''};
   saveSession();
@@ -1863,16 +1868,31 @@ function togSoga(){S.sogaDone=!S.sogaDone;saveSession();renderHoy();}
 function expEj(i){S.exp=i;saveSession();renderHoy();}
 function adjustPeso(i, delta){
   const cur = parsePeso(S.ejs[i].kg) || 0;
-  const next = Math.max(0, Math.round((cur + delta) * 2) / 2); // step 0.5
+  const next = Math.max(0, Math.round((cur + delta) * 2) / 2);
   S.ejs[i].kg = next > 0 ? String(next) : '';
+  // Actualizar weight en todas las series
+  if(S.ejs[i].series) S.ejs[i].series.forEach(s=>s.weight=next||null);
   autoSave();
   renderHoy();
 }
-function setKg(i,v){S.ejs[i].kg=v;
+function setKg(i,v){
+  S.ejs[i].kg=v;
+  const n=parsePeso(v)||null;
+  if(S.ejs[i].series) S.ejs[i].series.forEach(s=>s.weight=n);
   // propagar peso a todas las series no completadas
   if(S.ejs[i].series){S.ejs[i].series.forEach(s=>{if(!s.completed)s.weight=parsePeso(v);});}
 }
-function setRep(i,s,v){if(S.ejs[i].series)S.ejs[i].series[s].reps=parseInt(v)||null;}
+function setRep(i,s,v){
+  const val = parseInt(v)||null;
+  // Guardar en reps[] (modelo simple, para render)
+  if(!S.ejs[i].reps) S.ejs[i].reps = [];
+  S.ejs[i].reps[s] = v;
+  // Guardar en series[] (modelo completo, para historial y progresión)
+  if(!S.ejs[i].series) S.ejs[i].series = [];
+  if(!S.ejs[i].series[s]) S.ejs[i].series[s]={setNumber:s+1,reps:null,rir:null,completed:false,weight:null};
+  S.ejs[i].series[s].reps = val;
+  S.ejs[i].series[s].weight = parsePeso(S.ejs[i].kg)||null;
+}
 function setSens(i,v){S.ejs[i].sens=v;saveSession();renderHoy();}
 function setMol(i,v){S.ejs[i].mol=v;saveSession();renderHoy();}
 let _pendingEjIdx=null;
@@ -2235,7 +2255,7 @@ function guardarF(){
     const st=S.ejs[i];
     const est=st.done?calcEstado(i):null;
     return{n:e.n,kg:st.kg,series:st.series,sens:st.sens,done:st.done,est:est?.tipo||null};
-  }).filter(e=>e.kg||(e.series&&e.series.some(s=>s.reps)));
+  }).filter(e=>e.kg||(e.reps&&e.reps.some(r=>r))||(e.series&&e.series.some(s=>s.reps)));
   if(!ejs.length){toast('Sin datos para guardar','error');return;}
   openResumen(ejs, dow);
 }
@@ -2287,8 +2307,10 @@ function _commitGuardarF(){
   const ejs=plan.map((e,i)=>{
     const st=S.ejs[i];
     const est=st.done?calcEstado(i):null;
-    return{n:e.n,kg:st.kg,series:st.series,sens:st.sens,done:st.done,est:est?.tipo||null};
-  }).filter(e=>e.kg||(e.series&&e.series.some(s=>s.reps)));
+    // Sincronizar reps[] desde series[] antes de guardar
+    const reps=(st.series||[]).map(s=>s.reps!=null?String(s.reps):'');
+    return{n:e.n,kg:st.kg,series:st.series,reps,sens:st.sens,done:st.done,est:est?.tipo||null};
+  }).filter(e=>e.kg||(e.reps&&e.reps.some(r=>r))||(e.series&&e.series.some(s=>s.reps)));
   const d=gD();
   d.ses.unshift({
     t:'fuerza',fecha:todayLbl(),iso:todayISO(),semana:weekKey(),
@@ -2807,20 +2829,19 @@ function skipEnergia(){
   else if(_pendingGuardar==='running') _commitGuardarR();
 }
 
-// Highlight botón al tocar
-document.addEventListener('click', function(e){
-  if(e.target.matches('#energia-modal .en-btn')){
-    document.querySelectorAll('#energia-modal .en-btn').forEach(b=>{
-      b.className='en-btn';
-    });
-    const v = e.target.getAttribute('onclick').match(/saveEnergia\('(.+?)'\)/)?.[1];
-    if(v){
-      const map={'excelente':'sel-exc','bien':'sel-bien','cansado':'sel-can','muy-cansado':'sel-muy'};
-      e.target.classList.add(map[v]||'');
-      S._pendingEnergia = v;
-    }
-  }
-});
+function selectEnergia(v){
+  // Limpiar todos los botones
+  ['excelente','bien','cansado','muy-cansado'].forEach(function(k){
+    const el = document.getElementById('en-'+k);
+    if(el) el.className = 'en-btn';
+  });
+  // Highlight del seleccionado
+  const map = {'excelente':'sel-exc','bien':'sel-bien','cansado':'sel-can','muy-cansado':'sel-muy'};
+  const el = document.getElementById('en-'+v);
+  if(el) el.classList.add(map[v]||'');
+  S._pendingEnergia = v;
+  S.energia = v;
+}
 
 /* ═══════════════ HISTORIAL POR EJERCICIO ═══════════════ */
 function openEjHist(nombre){
