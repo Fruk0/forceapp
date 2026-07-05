@@ -1407,7 +1407,7 @@ let S={
   run:{dist:'',pace:'',dur:'',sens:null,nota:''},
 };
 // Día efectivo — respeta override si está activo
-function getDow(){ return S.overrideDow!==null?S.overrideDow:S.dow; }
+function getDow(){ return (S.overrideDow!=null)?S.overrideDow:S.dow; }
 
 function makeSeries(n){
   return Array.from({length:n}, (_,i) => ({setNumber:i+1, reps:null, rir:null, completed:false, weight:null}));
@@ -1436,7 +1436,11 @@ function loadSession(){
   try{
     const saved=JSON.parse(localStorage.getItem(SK)||'null');
     if(saved&&saved.dow===new Date().getDay()){
-      S=saved;return true;
+      S=saved;
+      // Asegurar campos nuevos que pueden no existir en sesiones viejas
+      if(S.overrideDow===undefined) S.overrideDow=null;
+      if(S.molSel===undefined) S.molSel=[];
+      return true;
     }
   }catch(e){}
   return false;
@@ -1565,6 +1569,15 @@ function goTo(s){
 /* ═══════════════ HOY ═══════════════ */
 function renderHoy(){
   const dow=getDow();const dia=DIAS[dow];
+  if(!dia){
+    // Fallback si el día no existe (no debería pasar)
+    S.overrideDow=null;
+    const realDow=S.dow;const realDia=DIAS[realDow];
+    if(!realDia) return;
+    document.getElementById('screen-hoy').innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--tx3);">Cargando...</div>';
+    setTimeout(renderHoy, 100);
+    return;
+  }
   const isFuerza=dia.t==='fuerza';
   const hasCore=[3,6].includes(dow);
   const yaEntrenó=seEntrenoHoy();
