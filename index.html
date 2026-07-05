@@ -11,10 +11,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
-html {
-  height: 100%;
-  height: -webkit-fill-available;
-}
 :root{
   --bg:#0F0F0F;
   --s1:#181818;
@@ -41,13 +37,23 @@ html {
   --fd:'Bebas Neue','Barlow',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-html{background:var(--bg);height:100%;}
+html{
+  height:100%;
+  background:var(--bg);
+}
 body{
-  font-family:var(--f);background:var(--bg);color:var(--tx);
-  position:fixed;top:0;left:0;right:0;bottom:0;
-  width:100%;max-width:430px;margin:0 auto;
+  font-family:var(--f);
+  background:var(--bg);
+  color:var(--tx);
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  width:100%;
+  max-width:430px;
+  margin:0 auto;
   -webkit-font-smoothing:antialiased;
-  overflow:hidden;display:flex;flex-direction:column;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
   overscroll-behavior:none;
 }
 
@@ -92,8 +98,20 @@ body{
 .nav-btn.active{color:var(--y);}
 
 /* ── SCREENS ── */
-.screen{display:none;padding:18px 20px 32px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
-.screen.active{display:block;flex:1;min-height:0;height:0;}
+.screen{
+  display:none;
+  flex-direction:column;
+  padding:18px 20px 32px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+}
+.screen.active{
+  display:flex;
+  flex:1;
+  min-height:0;
+}
 
 /* ── CARD ── */
 .card{
@@ -294,8 +312,8 @@ body{
 .peso-input{
   background:transparent;border:none;border-bottom:2px solid var(--b2);
   border-radius:0;color:var(--y);font-family:var(--fd);
-  font-size:56px;font-weight:400;letter-spacing:3px;
-  width:130px;padding:4px 8px 8px;outline:none;text-align:center;
+  font-size:64px;font-weight:400;letter-spacing:3px;
+  width:150px;padding:4px 8px 8px;outline:none;text-align:center;
   -moz-appearance:textfield;transition:border-color .15s;
 }
 .peso-input::-webkit-inner-spin-button,.peso-input::-webkit-outer-spin-button{-webkit-appearance:none;}
@@ -319,8 +337,8 @@ body{
 .rep-input{
   background:var(--s2);border:1.5px solid var(--b2);
   border-radius:12px;color:var(--tx);font-family:var(--fd);
-  font-size:26px;font-weight:400;letter-spacing:1px;
-  width:100%;padding:13px 4px;text-align:center;outline:none;
+  font-size:32px;font-weight:400;letter-spacing:1px;
+  width:100%;padding:16px 4px;text-align:center;outline:none;
   -moz-appearance:textfield;transition:border-color .15s;
 }
 .rep-input::-webkit-inner-spin-button,.rep-input::-webkit-outer-spin-button{-webkit-appearance:none;}
@@ -1148,7 +1166,7 @@ button, .nav-btn, .peso-adj, .rep-input, .rsens-btn,
   <span class="hdr-date" id="hdr-date"></span>
 </header>
 
-<main style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;height:0;">
+<main style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
   <div id="screen-hoy" class="screen active"></div>
   <div id="screen-prog" class="screen"></div>
   <div id="screen-focus" class="screen"></div>
