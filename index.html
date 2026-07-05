@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#0F0F0F">
@@ -1067,6 +1067,71 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation:none !
 /* ═══ RUN FIELDS ═══ */
 .run-field{display:flex;flex-direction:column;gap:6px;}
 .run-field label{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1.5px;font-weight:600;}
+
+/* MODAL CAMBIAR ENTRENAMIENTO */
+.cambiar-modal{
+  position:fixed;inset:0;background:rgba(0,0,0,0.75);
+  z-index:200;display:flex;align-items:flex-end;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.cambiar-modal.open{opacity:1;pointer-events:all;}
+.cambiar-sheet{
+  width:100%;max-width:430px;margin:0 auto;
+  background:#1A1A1A;border-radius:24px 24px 0 0;
+  border-top:1px solid var(--b2);
+  padding:22px 20px 36px;
+  transform:translateY(100%);
+  transition:transform .3s cubic-bezier(.32,.72,0,1);
+}
+.cambiar-modal.open .cambiar-sheet{transform:translateY(0);}
+.cambiar-opt{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-radius:14px;
+  border:1px solid var(--b);background:var(--s1);
+  margin-bottom:8px;cursor:pointer;transition:all .15s;
+}
+.cambiar-opt:active{background:var(--s2);}
+.cambiar-opt.selected{border-color:rgba(255,208,0,0.4);background:rgba(255,208,0,0.06);}
+.cambiar-opt.selected .cambiar-opt-name{color:var(--y);}
+.cambiar-opt-name{font-size:15px;font-weight:500;color:var(--tx);}
+.cambiar-opt-dia{font-size:12px;color:var(--tx3);}
+.cambiar-opt-check{
+  width:20px;height:20px;border-radius:50%;
+  border:2px solid var(--b2);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.cambiar-opt.selected .cambiar-opt-check{
+  border-color:var(--y);background:var(--y);
+}
+
+/* Botón cambiar en la card del día */
+.cambiar-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;color:var(--tx3);background:transparent;
+  border:1px solid var(--b);border-radius:20px;
+  padding:4px 10px;cursor:pointer;transition:all .15s;
+  font-family:var(--f);margin-top:6px;
+}
+.cambiar-btn:active{background:var(--s2);color:var(--tx);}
+.cambiar-btn.override-active{
+  color:rgba(255,208,0,0.7);
+  border-color:rgba(255,208,0,0.25);
+  background:rgba(255,208,0,0.06);
+}
+
+
+/* iOS zoom fix — evita el zoom automático al tocar inputs */
+input, select, textarea {
+  font-size: 16px !important;
+}
+/* Touch callout y user-select para mejor experiencia táctil */
+button, .nav-btn, .peso-adj, .rep-input, .rsens-btn,
+.sens-btn, .en-btn, .skip-opt, .mol-opt, .cambiar-opt {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 </style>
 </head>
 <body>
@@ -1166,6 +1231,18 @@ body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation:none !
       Confirmar y guardar
     </button>
     <button class="btn-save" style="background:transparent;border:1px solid var(--b2);color:var(--tx3);font-size:13px;letter-spacing:1px;" onclick="closeResumen(null)">Seguir editando</button>
+  </div>
+</div>
+
+<!-- MODAL CAMBIAR ENTRENAMIENTO -->
+<div class="cambiar-modal" id="cambiar-modal" onclick="closeCambiar(event)">
+  <div class="cambiar-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">¿Qué hacés hoy?</div>
+    <div style="font-size:13px;color:var(--tx3);margin-bottom:16px;margin-top:-8px;">Elegí cualquier entrenamiento del plan</div>
+    <div id="cambiar-opts"></div>
+    <button class="btn-save" style="margin-top:8px;" onclick="confirmarCambiar()">Confirmar</button>
+    <button class="btn-save" style="background:transparent;border:1px solid var(--b);color:var(--tx3);font-size:13px;letter-spacing:1px;margin-top:8px;" onclick="closeCambiar(null)">Cancelar</button>
   </div>
 </div>
 
@@ -1300,6 +1377,7 @@ const DK='fa3_data';// persistent data key
 
 let S={
   dow:new Date().getDay(),
+  overrideDow:null, // null = usar día real, número = entrenamiento elegido
   sogaDone:false,
   ejs:[],
   exp:0,
@@ -1310,6 +1388,8 @@ let S={
   nota:'',
   run:{dist:'',pace:'',dur:'',sens:null,nota:''},
 };
+// Día efectivo — respeta override si está activo
+function getDow(){ return S.overrideDow!==null?S.overrideDow:S.dow; }
 
 function makeSeries(n){
   return Array.from({length:n}, (_,i) => ({setNumber:i+1, reps:null, rir:null, completed:false, weight:null}));
@@ -1319,7 +1399,7 @@ function makeSeries(n){
   return Array.from({length:n},(_,i)=>({setNumber:i+1,reps:null,rir:null,completed:false,weight:null}));
 }
 function initS(){
-  const plan=PLAN[S.dow]||[];
+  const plan=PLAN[getDow()]||[];
   S.ejs=plan.map(function(e){return{
     kg:'',
     reps:Array(e.s).fill(''),
@@ -1466,7 +1546,7 @@ function goTo(s){
 
 /* ═══════════════ HOY ═══════════════ */
 function renderHoy(){
-  const dow=S.dow;const dia=DIAS[dow];
+  const dow=getDow();const dia=DIAS[dow];
   const isFuerza=dia.t==='fuerza';
   const hasCore=[3,6].includes(dow);
   const yaEntrenó=seEntrenoHoy();
@@ -1517,8 +1597,12 @@ function renderDia(dia){
         <div class="dia-day">${dia.n} <span style="color:var(--tx3);font-weight:400;">· Semana ${getWeekNumber()}</span></div>
         <div class="dia-title">${title}</div>
       </div>
-
+      <button class="cambiar-btn ${S.overrideDow!==null?'override-active':''}" onclick="openCambiar()" style="margin-top:4px;flex-shrink:0;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        ${S.overrideDow!==null?DIAS[S.overrideDow].l:'Cambiar'}
+      </button>
     </div>
+    ${S.overrideDow!==null?`<div style="font-size:11px;color:rgba(255,208,0,0.6);margin-bottom:12px;margin-top:-8px;display:flex;align-items:center;gap:6px;"><span>Entrenamiento cambiado</span><button onclick="resetCambiar()" style="color:var(--tx3);background:none;border:none;cursor:pointer;font-family:var(--f);font-size:11px;text-decoration:underline;">Volver al plan</button></div>`:``}
     <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div class="prog-stat">
@@ -3083,6 +3167,87 @@ function editarEj(i){
 /* ═══════════════ INIT ═══════════════ */
 document.getElementById('hdr-date').textContent=
   new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+
+/* ═══════════════ CAMBIAR ENTRENAMIENTO ═══════════════ */
+let _pendingDow = null;
+
+function openCambiar(){
+  _pendingDow = getDow();
+  // Construir opciones: todos los días con plan definido
+  const opts = document.getElementById('cambiar-opts');
+  const diasFuerza = [1,3,4,6]; // días de fuerza
+  const diasRunning = [0,2,5];  // días de running
+  const realDow = S.dow;
+
+  let html = '';
+  // Mostrar todos los días del plan
+  [1,3,4,6,0,2,5].forEach(function(d){
+    const dia = DIAS[d];
+    const isSelected = d === _pendingDow;
+    const isHoy = d === realDow;
+    const isPendiente = !seEntrenoEseDia(d); // si no está registrado
+    html += '<div class="cambiar-opt'+(isSelected?' selected':'')+'" onclick="selectCambiarOpt('+d+')">'
+      + '<div>'
+      + '<div class="cambiar-opt-name">'+dia.l+'</div>'
+      + '<div class="cambiar-opt-dia">'+dia.n+(isHoy?' · hoy':'')+(isPendiente&&!isHoy?' · pendiente':''+(d===realDow?' · programado hoy':''))+'</div>'
+      + '</div>'
+      + '<div class="cambiar-opt-check">'
+      + (isSelected?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')
+      + '</div>'
+      + '</div>';
+  });
+  opts.innerHTML = html;
+  document.getElementById('cambiar-modal').classList.add('open');
+}
+
+function seEntrenoEseDia(dow){
+  // Verificar si hay sesión de ese tipo en los últimos 7 días
+  const d = gD();
+  const plan = PLAN[dow];
+  const tipo = DIAS[dow].t;
+  // Buscar en las últimas 7 sesiones
+  return d.ses.slice(0,7).some(function(s){
+    if(s.t !== tipo) return false;
+    if(tipo === 'fuerza') return s.lbl === DIAS[dow].l;
+    return true;
+  });
+}
+
+function selectCambiarOpt(dow){
+  _pendingDow = dow;
+  document.querySelectorAll('.cambiar-opt').forEach(function(el,i){
+    const d = [1,3,4,6,0,2,5][i];
+    el.classList.toggle('selected', d === dow);
+    const check = el.querySelector('.cambiar-opt-check');
+    if(check){
+      check.innerHTML = d===dow?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D0D0D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'';
+    }
+    const name = el.querySelector('.cambiar-opt-name');
+    if(name) name.style.color = d===dow?'var(--y)':'var(--tx)';
+  });
+}
+
+function confirmarCambiar(){
+  if(_pendingDow === null) return;
+  const esHoy = _pendingDow === S.dow;
+  S.overrideDow = esHoy ? null : _pendingDow;
+  // Resetear estado de sesión para el nuevo día
+  initS();
+  document.getElementById('cambiar-modal').classList.remove('open');
+  renderHoy();
+}
+
+function closeCambiar(e){
+  if(!e || e.target===document.getElementById('cambiar-modal'))
+    document.getElementById('cambiar-modal').classList.remove('open');
+}
+
+function resetCambiar(){
+  S.overrideDow = null;
+  initS();
+  saveSession();
+  renderHoy();
+}
 
 // Cargar sesión en curso si existe
 if(!loadSession())initS();
